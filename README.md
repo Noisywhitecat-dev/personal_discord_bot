@@ -11,6 +11,18 @@
 - 길드원은 봇 토큰 없이, 개인 인증 토큰만으로 로컬 클라이언트를 통해 오디오 송출
 - 오디오 캡처는 앱 단위(예: 브라우저 탭, 음악 앱)로 선택 가능 — 시스템 전체 소리가 아님
 
+## 길드원용 사용법
+개발자가 아니어도 아래만 하면 됩니다.
+
+1. **[Audio Relay Client 다운로드](https://github.com/Noisywhitecat-dev/personal_discord_bot/releases/latest/download/AudioRelayClientGui.exe)** — 위 링크를 클릭하면 `AudioRelayClientGui.exe`가 바로 받아집니다. (설치 불필요, 실행 파일 하나뿐)
+2. 디스코드에서 노래를 공유하고 싶은 음성 채널에 먼저 접속
+3. 채팅창에 `/start` 입력
+4. 방금 받은 `AudioRelayClientGui.exe` 실행
+5. 목록에서 소리를 보낼 앱(브라우저, 음악 앱 등)을 선택하고 **시작** 클릭
+6. 끝낼 때는 디스코드에서 `/stop` 입력 (또는 그냥 음성 채널에서 나가도 자동 종료됨)
+
+> 서버 주소나 비밀키를 입력할 필요는 없습니다 — 배포된 실행 파일에 이미 설정되어 있습니다.
+
 ## 아키텍처
 ```
 [로컬 클라이언트 A] 오디오 캡처 → WebSocket 전송 ─┐
@@ -31,7 +43,8 @@
 ## 프로젝트 구조 (예정)
 ```
 /bot            중앙 릴레이 봇 (Node.js)
-/client         로컬 클라이언트 (C#/.NET)
+/client         로컬 클라이언트 - 콘솔 버전 (C#/.NET)
+/client-gui     로컬 클라이언트 - GUI 버전 (C#/.NET, WinForms) — 길드원 배포용
 /docs           설계 문서, 프로토콜 명세
 README.md
 ```
@@ -61,6 +74,16 @@ cp .env.example .env
 ```
 
 이후 `bot/.env`를 열어 `DISCORD_TOKEN`, `GUILD_ID`, `VOICE_CHANNEL_ID` 등 값을 채워주세요.
+
+### GUI 클라이언트 배포용 빌드 (관리자용)
+`client-gui/secrets.local.json`(gitignore 대상, `secrets.local.json.example` 참고)에 실제 서버 주소와 `WS_SECRET`을 넣어두면 빌드 시 실행 파일에 내장됩니다.
+
+```bash
+cd client-gui
+dotnet publish -c Release -p:PublishProfile=win-x64
+```
+
+`bin/Release/net9.0-windows10.0.19041.0/publish/win-x64/AudioRelayClientGui.exe` 파일 하나만 생성되며, .NET 런타임 설치 없이 그 파일 하나로 실행됩니다. 이 파일을 GitHub Release에 `AudioRelayClientGui.exe`라는 이름으로 첨부하면 위 "길드원용 사용법"의 다운로드 링크가 자동으로 최신 파일을 가리킵니다.
 
 ## 라이선스
 비공개 개인/길드 프로젝트로, 별도 라이선스를 지정하지 않습니다.
