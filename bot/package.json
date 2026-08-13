@@ -1,0 +1,18 @@
+{
+  "name": "discord-audio-relay-bot",
+  "version": "0.1.0",
+  "description": "Central relay bot that plays audio streamed from guild members' local clients into a Discord voice channel.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@discordjs/voice": "^0.19.2",
+    "discord.js": "^14.27.0",
+    "ws": "^8.21.3"
+  }
+}

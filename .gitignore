@@ -1,0 +1,21 @@
+# --- Node.js (bot) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+!.env.example
+
+# --- .NET (client) ---
+bin/
+obj/
+*.user
+*.suo
+
+# --- OS / editor ---
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
