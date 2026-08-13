@@ -1,4 +1,5 @@
 using System.Text;
+using AudioRelayClient;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
@@ -7,18 +8,55 @@ Console.OutputEncoding = Encoding.UTF8;
 Console.Error.WriteLine("클라이언트 시작");
 
 var targetFormat = new WaveFormat(48000, 16, 2);
-using var stdout = Console.OpenStandardOutput();
+var serverUrl = GetArgValue(args, "--server");
 
-if (args.Contains("--system"))
+Func<byte[], int, Task> sink;
+WsAudioSink? wsSink = null;
+Stream? stdout = null;
+
+if (serverUrl != null)
 {
-    await CaptureSystemAudioAsync(targetFormat, stdout);
+    wsSink = await WsAudioSink.ConnectAsync(serverUrl);
+    sink = wsSink.SendAsync;
 }
 else
 {
-    await CaptureProcessAudioAsync(targetFormat, stdout);
+    stdout = Console.OpenStandardOutput();
+    var stdoutStream = stdout;
+    sink = async (buffer, count) =>
+    {
+        await stdoutStream.WriteAsync(buffer.AsMemory(0, count));
+        await stdoutStream.FlushAsync();
+    };
 }
 
-static async Task CaptureProcessAudioAsync(WaveFormat targetFormat, Stream stdout)
+try
+{
+    if (args.Contains("--system"))
+    {
+        await CaptureSystemAudioAsync(targetFormat, sink);
+    }
+    else
+    {
+        await CaptureProcessAudioAsync(targetFormat, sink);
+    }
+}
+finally
+{
+    if (wsSink != null)
+    {
+        await wsSink.DisposeAsync();
+    }
+    stdout?.Dispose();
+}
+
+static string? GetArgValue(string[] args, string name)
+{
+    int index = Array.IndexOf(args, name);
+    return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
+}
+
+static async Task CaptureProcessAudioAsync(WaveFormat targetFormat, Func<byte[], int, Task> sink)
 {
     using var enumerator = new MMDeviceEnumerator();
     using var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
@@ -93,10 +131,10 @@ static async Task CaptureProcessAudioAsync(WaveFormat targetFormat, Stream stdou
     Console.Error.WriteLine($"'{targetName}' 실시간 캡처 시작 (Ctrl+C로 종료)");
 
     var pcm16Provider = BuildConverter(buffered, targetFormat);
-    await PumpToStdoutAsync(pcm16Provider, stdout);
+    await PumpAsync(pcm16Provider, sink);
 }
 
-static async Task CaptureSystemAudioAsync(WaveFormat targetFormat, Stream stdout)
+static async Task CaptureSystemAudioAsync(WaveFormat targetFormat, Func<byte[], int, Task> sink)
 {
     using var capture = new WasapiLoopbackCapture();
 
@@ -119,7 +157,7 @@ static async Task CaptureSystemAudioAsync(WaveFormat targetFormat, Stream stdout
     Console.Error.WriteLine("시스템 오디오 캡처 시작 (Ctrl+C로 종료)");
 
     var pcm16Provider = BuildConverter(buffered, targetFormat);
-    await PumpToStdoutAsync(pcm16Provider, stdout);
+    await PumpAsync(pcm16Provider, sink);
 }
 
 static IWaveProvider BuildConverter(BufferedWaveProvider buffered, WaveFormat targetFormat)
@@ -139,20 +177,22 @@ static IWaveProvider BuildConverter(BufferedWaveProvider buffered, WaveFormat ta
     return sampleProvider.ToWaveProvider16();
 }
 
-static async Task PumpToStdoutAsync(IWaveProvider provider, Stream stdout)
+static async Task PumpAsync(IWaveProvider provider, Func<byte[], int, Task> sink)
 {
+    // BufferedWaveProvider(ReadFully: true)는 데이터가 없으면 무음으로 채워서 즉시 반환하므로,
+    // 전송 계층의 자연스러운 백프레셔(예: 표준출력 파이프)가 없으면 이 루프가 CPU 한계까지
+    // 폭주하며 무음을 실제 오디오처럼 계속 내보낼 수 있다. PeriodicTimer로 실제 청크 길이(100ms)에
+    // 맞춰 직접 페이싱해서, 전송 방식과 무관하게 항상 실시간 속도로만 Read/전송하도록 한다.
+    var chunkDuration = TimeSpan.FromMilliseconds(100);
     var readBuffer = new byte[provider.WaveFormat.AverageBytesPerSecond / 10];
-    while (true)
+    using var timer = new PeriodicTimer(chunkDuration);
+
+    while (await timer.WaitForNextTickAsync())
     {
         int bytesRead = provider.Read(readBuffer.AsSpan());
         if (bytesRead > 0)
         {
-            await stdout.WriteAsync(readBuffer.AsMemory(0, bytesRead));
-            await stdout.FlushAsync();
-        }
-        else
-        {
-            await Task.Delay(10);
+            await sink(readBuffer, bytesRead);
         }
     }
 }
