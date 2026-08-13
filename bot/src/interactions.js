@@ -65,7 +65,7 @@ async function handleStop(interaction) {
     return;
   }
 
-  await interaction.reply('릴레이를 종료했습니다.');
+  await interaction.reply({ content: '릴레이를 종료했습니다.', ephemeral: true });
 }
 
 module.exports = { handleInteraction };
