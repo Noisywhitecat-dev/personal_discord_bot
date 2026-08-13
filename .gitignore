@@ -15,6 +15,7 @@ obj/
 
 # --- Claude ---
 CLAUDE.md
+docs/
 
 # --- test assets (local only) ---
 bot/assets/*
