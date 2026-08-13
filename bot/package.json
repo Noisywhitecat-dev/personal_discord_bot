@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "capture:test": "node src/localCaptureTest.js"
+    "capture:test": "node src/localCaptureTest.js",
+    "appcapture:test": "node src/appCaptureTest.js"
   },
   "license": "UNLICENSED",
   "dependencies": {
