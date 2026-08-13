@@ -187,12 +187,14 @@ static async Task PumpAsync(IWaveProvider provider, Func<byte[], int, Task> sink
     var chunkDuration = TimeSpan.FromMilliseconds(100);
     var readBuffer = new byte[provider.WaveFormat.AverageBytesPerSecond / 10];
     using var timer = new PeriodicTimer(chunkDuration);
+    var agc = new AudioRelayClient.SimpleAgc();
 
     while (await timer.WaitForNextTickAsync())
     {
         int bytesRead = provider.Read(readBuffer.AsSpan());
         if (bytesRead > 0)
         {
+            agc.Process(readBuffer, bytesRead);
             await sink(readBuffer, bytesRead);
         }
     }
