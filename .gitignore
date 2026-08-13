@@ -13,6 +13,13 @@ obj/
 *.user
 *.suo
 
+# --- Claude ---
+CLAUDE.md
+
+# --- test assets (local only) ---
+bot/assets/*
+!bot/assets/.gitkeep
+
 # --- OS / editor ---
 .vs/
 .vscode/*

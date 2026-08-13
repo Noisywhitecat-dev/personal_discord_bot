@@ -48,9 +48,19 @@ README.md
 > 개발 초기 단계로, 설정 방법은 추후 업데이트됩니다.
 
 ### 요구 사항
-- Node.js (버전 명시 예정)
-- .NET SDK (버전 명시 예정)
+- Node.js 22 이상 (LTS 권장)
+- .NET 8 SDK
 - 디스코드 봇 토큰 (개발용 별도 애플리케이션 사용 권장)
+
+### 환경 변수 설정 (bot)
+`bot/.env`는 토큰 등 민감한 값을 담고 있어 git에 커밋되지 않습니다(`.gitignore`에 `.env` 규칙 있음).
+
+```bash
+cd bot
+cp .env.example .env
+```
+
+이후 `bot/.env`를 열어 `DISCORD_TOKEN`, `GUILD_ID`, `VOICE_CHANNEL_ID` 등 값을 채워주세요.
 
 ## 라이선스
 비공개 개인/길드 프로젝트로, 별도 라이선스를 지정하지 않습니다.
