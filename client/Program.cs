@@ -16,7 +16,8 @@ Stream? stdout = null;
 
 if (serverUrl != null)
 {
-    wsSink = await WsAudioSink.ConnectAsync(serverUrl);
+    var secret = GetArgValue(args, "--secret");
+    wsSink = await WsAudioSink.ConnectAsync(serverUrl, secret);
     sink = wsSink.SendAsync;
 }
 else
