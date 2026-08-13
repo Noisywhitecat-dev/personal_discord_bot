@@ -15,7 +15,8 @@ const client = new Client({
 
 client.once('ready', async () => {
   console.log(`로그인됨: ${client.user.tag}`);
-  await relayFromClientProcess(client, { clientArgs: ['--system'] });
+  // 클라이언트가 콘솔에서 캡처할 프로세스 번호를 입력받으므로 stdin을 이 터미널에 연결합니다.
+  await relayFromClientProcess(client, { inheritStdin: true });
 });
 
 client.login(DISCORD_TOKEN);
