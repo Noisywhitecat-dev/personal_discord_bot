@@ -233,12 +233,14 @@ public class MainForm : Form
             var pcm16Provider = BuildConverter(buffered, targetFormat);
             var readBuffer = new byte[pcm16Provider.WaveFormat.AverageBytesPerSecond / 10];
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+            var agc = new SimpleAgc();
 
             while (await timer.WaitForNextTickAsync(token))
             {
                 int bytesRead = pcm16Provider.Read(readBuffer.AsSpan());
                 if (bytesRead > 0)
                 {
+                    agc.Process(readBuffer, bytesRead);
                     await socket.SendAsync(
                         new ArraySegment<byte>(readBuffer, 0, bytesRead),
                         WebSocketMessageType.Binary,
