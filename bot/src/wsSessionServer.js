@@ -6,7 +6,7 @@ const session = require('./session');
 function startWsSessionServer(port) {
   const secret = process.env.WS_SECRET;
   const wss = new WebSocketServer({ port });
-  console.log(`WebSocket 서버 대기 중 (port ${port})`);
+  console.log(`오디오 릴레이 WebSocket 서버가 ${port}번 포트에서 대기 중입니다.`);
 
   wss.on('connection', (ws) => {
     const authTimeout = setTimeout(() => {
@@ -25,7 +25,7 @@ function startWsSessionServer(port) {
       }
 
       if (secret && receivedSecret !== secret) {
-        console.log('잘못된 비밀키로 연결 거부');
+        console.log('잘못된 비밀키로 접속을 시도해 연결을 거부했습니다.');
         ws.close(4003, '인증 실패');
         return;
       }
@@ -36,7 +36,7 @@ function startWsSessionServer(port) {
         return;
       }
 
-      console.log(`클라이언트 연결됨 (세션 사용자 ${current.userId})`);
+      console.log(`클라이언트가 연결되었습니다. (세션 사용자: ${current.userId})`);
 
       const audioStream = new PassThrough();
       const resource = createAudioResource(audioStream, { inputType: StreamType.Raw });

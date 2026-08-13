@@ -5,7 +5,7 @@ const { handleInteraction } = require('./interactions');
 const { startWsSessionServer } = require('./wsSessionServer');
 const session = require('./session');
 
-console.log('봇 시작');
+console.log('오디오 릴레이 봇을 시작합니다...');
 
 const { DISCORD_TOKEN, GUILD_ID, WS_PORT } = process.env;
 
@@ -19,9 +19,9 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async (readyClient) => {
-  console.log(`로그인됨: ${readyClient.user.tag}`);
+  console.log(`디스코드 로그인 완료: ${readyClient.user.tag}`);
   await registerCommands(DISCORD_TOKEN, readyClient.user.id, GUILD_ID);
-  console.log('슬래시 커맨드 등록 완료 (/start, /stop)');
+  console.log('슬래시 커맨드 등록 완료: /start, /stop');
   startWsSessionServer(Number(WS_PORT));
 });
 
@@ -36,7 +36,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
   }
 
   if (newState.channelId !== current.channelId) {
-    console.log(`세션 소유자가 채널을 나가 릴레이를 자동 종료합니다 (user ${current.userId})`);
+    console.log(`세션 소유자가 음성 채널을 나가 릴레이를 자동으로 종료했습니다. (사용자: ${current.userId})`);
     session.endSession();
   }
 });

@@ -47,10 +47,7 @@ async function handleStart(interaction) {
   session.startSession(interaction.user.id, connection, player, voiceChannel.id);
 
   await interaction.reply({
-    content:
-      `${voiceChannel.name} 채널로 릴레이를 시작합니다.\n` +
-      `로컬 클라이언트를 아래처럼 실행해주세요:\n` +
-      `\`AudioRelayClient.exe --server ws://<봇 서버 주소>:${process.env.WS_PORT}\``,
+    content: `${voiceChannel.name} 채널로 릴레이를 시작합니다. Audio Relay Client를 실행해서 오디오 소스를 선택해주세요.`,
     ephemeral: true,
   });
 }

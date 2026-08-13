@@ -20,6 +20,9 @@ CLAUDE.md
 bot/assets/*
 !bot/assets/.gitkeep
 
+# --- client-gui: real server address/secret baked in at build time ---
+client-gui/secrets.local.json
+
 # --- OS / editor ---
 .vs/
 .vscode/*
