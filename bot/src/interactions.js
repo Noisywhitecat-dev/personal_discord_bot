@@ -45,6 +45,27 @@ async function handleStart(interaction) {
     console.error('[voice] connection 오류:', error);
   });
 
+  // @discordjs/voice는 연결이 끊겨도 자동으로 재연결하지 않는다. Disconnected 상태가 되면
+  // 일시적인 끊김(채널 이동 등)인지 완전한 연결 끊김인지 구분해서, 일시적이면 재연결을 기다리고
+  // 아니면 connection을 완전히 정리한다. (공식 문서 권장 패턴)
+  connection.on(VoiceConnectionStatus.Disconnected, async () => {
+    try {
+      await Promise.race([
+        entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+        entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+      ]);
+      console.log('[voice] 일시적 연결 끊김에서 복구 중...');
+    } catch {
+      console.log('[voice] 연결을 복구할 수 없어 세션을 종료합니다.');
+      connection.destroy();
+    }
+  });
+
+  connection.on(VoiceConnectionStatus.Destroyed, () => {
+    console.log('[voice] connection이 destroy되어 세션을 정리합니다.');
+    session.clearSessionState();
+  });
+
   const player = createAudioPlayer();
   connection.subscribe(player);
   player.on('stateChange', (oldState, newState) => {

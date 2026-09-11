@@ -19,6 +19,11 @@ function endSession() {
   }
 }
 
+// connection이 이미 죽었을 때(destroy 이벤트 등) 세션 상태만 비운다. connection.destroy()를 다시 호출하지 않는다.
+function clearSessionState() {
+  activeSession = null;
+}
+
 function endSessionForUser(userId) {
   if (activeSession && activeSession.userId === userId) {
     endSession();
@@ -27,4 +32,4 @@ function endSessionForUser(userId) {
   return false;
 }
 
-module.exports = { getSession, isLocked, startSession, endSession, endSessionForUser };
+module.exports = { getSession, isLocked, startSession, endSession, endSessionForUser, clearSessionState };
