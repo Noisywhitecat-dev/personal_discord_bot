@@ -8,6 +8,18 @@ function startWsSessionServer(port) {
   const wss = new WebSocketServer({ port });
   console.log(`오디오 릴레이 WebSocket 서버가 ${port}번 포트에서 대기 중입니다.`);
 
+  // 세션이 살아있는 동안 connection/player 상태를 주기적으로 남겨서,
+  // "겉으론 연결된 것처럼 보이는데 실제로는 멈춘" 상황의 원인 추적에 사용한다.
+  setInterval(() => {
+    const current = session.getSession();
+    if (!current) {
+      return;
+    }
+    console.log(
+      `[watchdog] connection=${current.connection.state.status}, player=${current.player.state.status}`
+    );
+  }, 30_000);
+
   wss.on('connection', (ws) => {
     const authTimeout = setTimeout(() => {
       ws.close(4001, '인증 시간 초과');
@@ -42,13 +54,22 @@ function startWsSessionServer(port) {
       const resource = createAudioResource(audioStream, { inputType: StreamType.Raw });
       current.player.play(resource);
 
+      let bytesSinceLastLog = 0;
+      const receiveLogInterval = setInterval(() => {
+        console.log(`[relay] 최근 30초간 수신량: ${(bytesSinceLastLog / 1024).toFixed(1)} KB`);
+        bytesSinceLastLog = 0;
+      }, 30_000);
+
       ws.on('message', (chunk, isBinary) => {
         if (isBinary) {
+          bytesSinceLastLog += chunk.length;
           audioStream.write(chunk);
         }
       });
 
-      ws.on('close', () => {
+      ws.on('close', (code, reason) => {
+        console.log(`클라이언트 연결 종료 (code=${code}, reason=${reason.toString() || '없음'})`);
+        clearInterval(receiveLogInterval);
         audioStream.end();
       });
     });
