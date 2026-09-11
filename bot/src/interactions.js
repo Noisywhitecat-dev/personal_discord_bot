@@ -38,8 +38,20 @@ async function handleStart(interaction) {
   });
   await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
 
+  const loggedNetworkingInstances = new WeakSet();
+
+  // VoiceConnectionStatus는 상위 레벨 상태다. 음성 전용 웹소켓/UDP(하트비트 등)를 다루는
+  // 더 아래 계층(networking)이 조용히 죽어도 상위 상태는 Ready로 안 바뀔 수 있어서,
+  // networking의 상태 변화도 별도로 남긴다.
   connection.on('stateChange', (oldState, newState) => {
     console.log(`[voice] connection 상태 변화: ${oldState.status} → ${newState.status}`);
+
+    if (newState.networking && !loggedNetworkingInstances.has(newState.networking)) {
+      loggedNetworkingInstances.add(newState.networking);
+      newState.networking.on('stateChange', (oldNetState, newNetState) => {
+        console.log(`[voice] networking(하위 계층) 상태 변화: ${oldNetState.code} → ${newNetState.code}`);
+      });
+    }
   });
   connection.on('error', (error) => {
     console.error('[voice] connection 오류:', error);
