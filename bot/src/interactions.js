@@ -38,8 +38,18 @@ async function handleStart(interaction) {
   });
   await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
 
+  connection.on('stateChange', (oldState, newState) => {
+    console.log(`[voice] connection 상태 변화: ${oldState.status} → ${newState.status}`);
+  });
+  connection.on('error', (error) => {
+    console.error('[voice] connection 오류:', error);
+  });
+
   const player = createAudioPlayer();
   connection.subscribe(player);
+  player.on('stateChange', (oldState, newState) => {
+    console.log(`[voice] player 상태 변화: ${oldState.status} → ${newState.status}`);
+  });
   player.on('error', (error) => {
     console.error('오디오 재생 오류:', error);
   });
