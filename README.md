@@ -37,15 +37,15 @@
 |---|---|
 | 중앙 릴레이 봇 | Node.js, discord.js, @discordjs/voice, ws |
 | 로컬 클라이언트 | C# (.NET), Windows Process Loopback Capture API |
-| 호스팅 | Oracle Cloud Always Free (ARM) |
-| 통신 | WebSocket (wss), Opus 오디오 인코딩 |
+| 호스팅 | Oracle Cloud Always Free (AMD VM.Standard.E2.1.Micro) |
+| 통신 | WebSocket (ws, 원시 PCM 전송), 봇에서 Opus 인코딩 후 디스코드로 송출 |
 
 ## 프로젝트 구조
 ```
 /bot            중앙 릴레이 봇 (Node.js)
 /client         로컬 클라이언트 - 콘솔 버전 (C#/.NET)
 /client-gui     로컬 클라이언트 - GUI 버전 (C#/.NET, WinForms) — 길드원 배포용
-/docs           설계 문서, 프로토콜 명세
+/docs           로컬 전용(비공개) 진행 기록 — git에 포함되지 않음
 README.md
 ```
 
@@ -54,7 +54,7 @@ README.md
 - [x] 2단계 — 시스템 오디오 캡처 → 봇 재생 (로컬, 앱 분리 없이)
 - [x] 3단계 — Process Loopback API로 특정 앱만 캡처
 - [x] 4단계 — 클라이언트-봇 네트워크 분리 (WebSocket 계층)
-- [x] 5단계 — 다중 사용자 인증 + 세션 잠금
+- [x] 5단계 — 세션 잠금 + 인증 (사용자별 토큰은 만들었다가 제거, 공유 비밀키 1개로 대체)
 - [x] 6단계 — Oracle Cloud 배포 및 실사용 테스트
 
 ## 시작하기
