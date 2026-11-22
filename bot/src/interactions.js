@@ -87,7 +87,7 @@ async function handleStart(interaction) {
     console.error('오디오 재생 오류:', error);
   });
 
-  session.startSession(interaction.user.id, connection, player, voiceChannel.id);
+  session.startSession(interaction.user.id, connection, player, voiceChannel.id, interaction.channel);
 
   await interaction.reply({
     content: `${voiceChannel.name} 채널로 릴레이를 시작합니다. Audio Relay Client를 실행해서 오디오 소스를 선택해주세요.`,

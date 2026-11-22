@@ -187,19 +187,24 @@ public class MainForm : Form
         else
         {
             _cts?.Cancel();
-            _relayTask = null;
-
-            _startStopButton.Text = "시작";
-            _processList.Enabled = true;
-            _serverBox.Enabled = true;
-            _secretBox.Enabled = true;
-            _refreshButton.Enabled = true;
+            ResetRelayUi();
             SetStatus("중지됨");
         }
     }
 
+    private void ResetRelayUi()
+    {
+        _relayTask = null;
+        _startStopButton.Text = "시작";
+        _processList.Enabled = true;
+        _serverBox.Enabled = true;
+        _secretBox.Enabled = true;
+        _refreshButton.Enabled = true;
+    }
+
     private async Task RunRelayAsync(ProcessEntry entry, string serverUrl, string secret, CancellationToken token)
     {
+        int? serverCloseCode = null;
         try
         {
             SetStatus($"'{entry.Name}' 연결 중...");
@@ -209,6 +214,11 @@ public class MainForm : Form
 
             var authJson = JsonSerializer.Serialize(new { secret });
             await socket.SendAsync(Encoding.UTF8.GetBytes(authJson), WebSocketMessageType.Text, endOfMessage: true, token);
+
+            // 서버가 연결을 닫으면(인증 실패, 이미 다른 클라이언트 연결됨 등) 전송 루프를 멈추고 이유를 보여준다.
+            // 수신 대기를 걸어둬야 서버의 ping에도 응답한다.
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var closeWatcher = WatchForServerCloseAsync(socket, linked);
 
             var targetFormat = new WaveFormat(48000, 16, 2);
 
@@ -235,19 +245,29 @@ public class MainForm : Form
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
             var agc = new SimpleAgc();
 
-            while (await timer.WaitForNextTickAsync(token))
+            try
             {
-                int bytesRead = pcm16Provider.Read(readBuffer.AsSpan());
-                if (bytesRead > 0)
+                while (await timer.WaitForNextTickAsync(linked.Token))
                 {
-                    agc.Process(readBuffer, bytesRead);
-                    await socket.SendAsync(
-                        new ArraySegment<byte>(readBuffer, 0, bytesRead),
-                        WebSocketMessageType.Binary,
-                        endOfMessage: true,
-                        token);
+                    int bytesRead = pcm16Provider.Read(readBuffer.AsSpan());
+                    if (bytesRead > 0)
+                    {
+                        agc.Process(readBuffer, bytesRead);
+                        await socket.SendAsync(
+                            new ArraySegment<byte>(readBuffer, 0, bytesRead),
+                            WebSocketMessageType.Binary,
+                            endOfMessage: true,
+                            linked.Token);
+                    }
                 }
             }
+            catch (Exception ex) when ((ex is OperationCanceledException && !token.IsCancellationRequested) || ex is WebSocketException)
+            {
+                // 서버가 연결을 닫았거나 끊어짐 (사용자가 직접 중지한 경우는 아래 바깥 catch로 간다)
+                linked.Cancel();
+            }
+
+            serverCloseCode = await closeWatcher;
         }
         catch (OperationCanceledException)
         {
@@ -257,7 +277,51 @@ public class MainForm : Form
         {
             SetStatus($"오류: {ex.Message}");
         }
+
+        if (serverCloseCode != null && !token.IsCancellationRequested)
+        {
+            SetStatus(DescribeServerClose(serverCloseCode.Value));
+            BeginInvoke(ResetRelayUi);
+        }
     }
+
+    // 서버가 close 프레임을 보내면 그 코드를, 프레임 없이 끊어지면 0을 돌려준다. 사용자가 중지한 경우에는 null.
+    private static async Task<int?> WatchForServerCloseAsync(ClientWebSocket socket, CancellationTokenSource linked)
+    {
+        var buffer = new byte[256];
+        try
+        {
+            while (true)
+            {
+                var result = await socket.ReceiveAsync(buffer, linked.Token);
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    linked.Cancel();
+                    return (int?)result.CloseStatus ?? 0;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (WebSocketException)
+        {
+            linked.Cancel();
+            return 0;
+        }
+    }
+
+    private static string DescribeServerClose(int code) => code switch
+    {
+        4001 => "서버가 인증 메시지를 받지 못했습니다. 다시 시도해주세요.",
+        4003 => "인증에 실패했습니다. 이 프로그램이 예전 버전일 수 있어요. 새 실행 파일을 받아주세요.",
+        4004 => "활성화된 릴레이 세션이 없습니다. 먼저 디스코드에서 /start를 실행해주세요.",
+        4005 => "이미 다른 오디오 클라이언트가 연결되어 있습니다. 한 번에 하나만 연결할 수 있어요.",
+        4006 => "인증 실패가 너무 많아 잠시 접속이 차단되었습니다. 잠시 후 다시 시도해주세요.",
+        0 => "서버와의 연결이 끊어졌습니다.",
+        _ => $"서버가 연결을 종료했습니다. (코드 {code})",
+    };
 
     private static IWaveProvider BuildConverter(BufferedWaveProvider buffered, WaveFormat targetFormat)
     {
