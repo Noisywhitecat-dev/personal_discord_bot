@@ -8,8 +8,9 @@ function isLocked() {
   return activeSession !== null;
 }
 
-function startSession(userId, connection, player, channelId) {
-  activeSession = { userId, connection, player, channelId };
+// textChannel: /start를 실행한 텍스트 채널(클라이언트 연결/해제 알림용). client: 현재 연결된 WS 클라이언트(세션당 하나).
+function startSession(userId, connection, player, channelId, textChannel = null) {
+  activeSession = { userId, connection, player, channelId, textChannel, client: null };
 }
 
 function endSession() {

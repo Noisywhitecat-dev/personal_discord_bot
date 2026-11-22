@@ -7,10 +7,10 @@ const session = require('./session');
 
 console.log('오디오 릴레이 봇을 시작합니다...');
 
-const { DISCORD_TOKEN, GUILD_ID, WS_PORT } = process.env;
+const { DISCORD_TOKEN, GUILD_ID, WS_PORT, WS_SECRET } = process.env;
 
-if (!DISCORD_TOKEN || !GUILD_ID || !WS_PORT) {
-  console.error('DISCORD_TOKEN, GUILD_ID, WS_PORT를 .env에 설정해주세요.');
+if (!DISCORD_TOKEN || !GUILD_ID || !WS_PORT || !WS_SECRET) {
+  console.error('DISCORD_TOKEN, GUILD_ID, WS_PORT, WS_SECRET를 .env에 설정해주세요. (WS_SECRET이 비어 있으면 시작하지 않습니다)');
   process.exit(1);
 }
 
