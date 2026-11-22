@@ -14,13 +14,13 @@ internal sealed class WsAudioSink : IAsyncDisposable
         _socket = socket;
     }
 
-    public static async Task<WsAudioSink> ConnectAsync(string serverUrl, string? secret)
+    public static async Task<WsAudioSink> ConnectAsync(string serverUrl, string? code)
     {
         var socket = new ClientWebSocket();
         await socket.ConnectAsync(new Uri(serverUrl), CancellationToken.None);
         Console.Error.WriteLine($"WebSocket 서버에 연결됨: {serverUrl}");
 
-        var authJson = JsonSerializer.Serialize(new { secret = secret ?? "" });
+        var authJson = JsonSerializer.Serialize(new { code = code ?? "" });
         await socket.SendAsync(Encoding.UTF8.GetBytes(authJson), WebSocketMessageType.Text, endOfMessage: true, CancellationToken.None);
 
         var sink = new WsAudioSink(socket);
@@ -64,7 +64,7 @@ internal sealed class WsAudioSink : IAsyncDisposable
     private static string DescribeClose(int code) => code switch
     {
         4001 => "서버가 인증 메시지를 받지 못했습니다. 다시 시도해주세요.",
-        4003 => "인증에 실패했습니다. 이 프로그램이 예전 버전일 수 있어요. 새 실행 파일을 받아주세요.",
+        4003 => "접속 코드가 올바르지 않거나 만료되었습니다. 디스코드에서 /start를 다시 입력해 새 코드를 받아주세요. (프로그램이 예전 버전이면 새 실행 파일을 받아주세요)",
         4004 => "활성화된 릴레이 세션이 없습니다. 먼저 디스코드에서 /start를 실행해주세요.",
         4005 => "이미 다른 오디오 클라이언트가 연결되어 있습니다. 한 번에 하나만 연결할 수 있어요.",
         4006 => "인증 실패가 너무 많아 잠시 접속이 차단되었습니다. 잠시 후 다시 시도해주세요.",

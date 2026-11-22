@@ -1,4 +1,3 @@
-const crypto = require('node:crypto');
 const { WebSocketServer } = require('ws');
 const { PassThrough } = require('node:stream');
 const { createAudioResource, StreamType } = require('@discordjs/voice');
@@ -9,18 +8,6 @@ const AUTH_FAIL_WINDOW_MS = 60_000;
 const AUTH_BLOCK_MS = 60_000;
 // 오디오 청크는 약 19KB(100ms 분량)다. 인증 전에도 적용되므로 큰 메시지로 메모리를 채우는 걸 막는다.
 const MAX_MESSAGE_BYTES = 64 * 1024;
-
-function isSecretValid(received, expected) {
-  if (typeof received !== 'string') {
-    return false;
-  }
-  const receivedBuffer = Buffer.from(received);
-  const expectedBuffer = Buffer.from(expected);
-  if (receivedBuffer.length !== expectedBuffer.length) {
-    return false;
-  }
-  return crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
-}
 
 // 인증 실패를 IP별로 메모리에만 기록한다. 창(window) 안에 한도만큼 실패하면 잠시 차단한다.
 function createAuthRateLimiter(now = Date.now) {
@@ -71,11 +58,6 @@ async function notifySessionChannel(current, message) {
 }
 
 function startWsSessionServer(port, { heartbeatMs = 15_000 } = {}) {
-  const secret = process.env.WS_SECRET;
-  if (!secret) {
-    throw new Error('WS_SECRET이 설정되어 있지 않아 WebSocket 서버를 시작할 수 없습니다.');
-  }
-
   const wss = new WebSocketServer({ port, maxPayload: MAX_MESSAGE_BYTES });
   const limiter = createAuthRateLimiter();
   console.log(`오디오 릴레이 WebSocket 서버가 ${port}번 포트에서 대기 중입니다.`);
@@ -130,22 +112,14 @@ function startWsSessionServer(port, { heartbeatMs = 15_000 } = {}) {
       clearTimeout(authTimeout);
       ws.isAlive = true;
 
-      let receivedSecret;
+      let receivedCode;
       try {
-        receivedSecret = JSON.parse(data.toString()).secret;
+        receivedCode = JSON.parse(data.toString()).code;
       } catch {
         limiter.recordFailure(ip);
         ws.close(4000, '잘못된 인증 메시지');
         return;
       }
-
-      if (!isSecretValid(receivedSecret, secret)) {
-        console.log(`잘못된 비밀키로 접속을 시도해 연결을 거부했습니다. (${ip})`);
-        limiter.recordFailure(ip);
-        ws.close(4003, '인증 실패');
-        return;
-      }
-      limiter.recordSuccess(ip);
 
       const current = session.getSession();
       if (!current) {
@@ -153,11 +127,24 @@ function startWsSessionServer(port, { heartbeatMs = 15_000 } = {}) {
         return;
       }
 
+      // 클라이언트가 이미 붙어 있는 동안에는 코드를 검사하지 않고 거부한다. 그 사이에는 코드를 추측해볼 수 없다.
       if (current.client) {
         console.log(`이미 연결된 클라이언트가 있어 새 연결을 거부했습니다. (${ip})`);
         ws.close(4005, '이미 다른 클라이언트가 연결되어 있습니다');
         return;
       }
+
+      const codeResult = session.useJoinCode(receivedCode);
+      if (codeResult !== 'ok') {
+        console.log(`접속 코드 인증에 실패해 연결을 거부했습니다. (${codeResult}, ${ip})`);
+        limiter.recordFailure(ip);
+        if (codeResult === 'locked_now') {
+          notifySessionChannel(current, '접속 코드 인증 실패가 너무 많아 현재 코드를 무효화했습니다. /start를 다시 입력해 새 코드를 받으세요.');
+        }
+        ws.close(4003, '접속 코드가 올바르지 않습니다');
+        return;
+      }
+      limiter.recordSuccess(ip);
       current.client = ws;
 
       console.log(`클라이언트가 연결되었습니다. (세션 사용자: ${current.userId}, ${ip})`);

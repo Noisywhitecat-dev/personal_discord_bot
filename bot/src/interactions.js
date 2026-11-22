@@ -16,6 +16,15 @@ async function handleInteraction(interaction) {
 async function handleStart(interaction) {
   if (session.isLocked()) {
     const current = session.getSession();
+    // 세션 주인이 다시 /start 하면 새 접속 코드를 발급한다. (코드는 일회용·10분 유효라, 클라이언트를 다시 켜거나 코드가 만료됐을 때 /stop 없이 새로 받을 수 있게 한다)
+    if (current.userId === interaction.user.id) {
+      const code = session.issueJoinCode();
+      await interaction.reply({
+        content: `이미 릴레이 중입니다. 새 접속 코드: **${code}** (10분 안에 한 번만 사용할 수 있고, 이전 코드는 더 이상 쓸 수 없습니다.)`,
+        ephemeral: true,
+      });
+      return;
+    }
     await interaction.reply({
       content: `이미 <@${current.userId}>님이 릴레이 중입니다. 먼저 종료될 때까지 기다려주세요.`,
       ephemeral: true,
@@ -88,9 +97,10 @@ async function handleStart(interaction) {
   });
 
   session.startSession(interaction.user.id, connection, player, voiceChannel.id, interaction.channel);
+  const code = session.issueJoinCode();
 
   await interaction.reply({
-    content: `${voiceChannel.name} 채널로 릴레이를 시작합니다. Audio Relay Client를 실행해서 오디오 소스를 선택해주세요.`,
+    content: `${voiceChannel.name} 채널로 릴레이를 시작합니다. 접속 코드: **${code}** (10분 안에 한 번만 사용할 수 있고, 본인에게만 보입니다.) Audio Relay Client를 실행해서 이 코드를 입력하고 오디오 소스를 선택해주세요.`,
     ephemeral: true,
   });
 }
