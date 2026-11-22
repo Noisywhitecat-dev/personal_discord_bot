@@ -8,13 +8,13 @@
 ## 개요
 - 단일 길드에서만 동작
 - 한 번에 한 명만 송출 가능 (선점 시 다른 사용자의 요청은 거부됨)
-- 길드원은 봇 토큰이나 별도 입력 없이, 서버 주소와 인증 정보가 내장된 배포용 실행 파일만 실행해 오디오 송출
+- 길드원은 봇 토큰이나 별도 입력 없이, 서버 주소와 공유 비밀키가 내장된 배포용 실행 파일만 실행해 오디오 송출 (이 파일은 외부에 공유하면 안 됨 — [보안](#보안) 참고)
 - 오디오 캡처는 앱 단위(예: 브라우저 탭, 음악 앱)로 선택 가능 — 시스템 전체 소리가 아님
 
 ## 길드원용 사용법
 개발자가 아니어도 아래만 하면 됩니다.
 
-1. **[Audio Relay Client 다운로드](https://github.com/Noisywhitecat-dev/personal_discord_bot/releases/latest/download/AudioRelayClientGui.exe)** — 위 링크를 클릭하면 `AudioRelayClientGui.exe`가 바로 받아집니다. (설치 불필요, 실행 파일 하나뿐)
+1. **실행 파일은 길드 디스코드 채널에서 받으세요.** `AudioRelayClientGui.exe` 하나뿐이고 설치는 필요 없습니다. 이 파일은 길드 밖으로 공유하지 마세요.
 2. 디스코드에서 노래를 공유하고 싶은 음성 채널에 먼저 접속
 3. 채팅창에 `/start` 입력
 4. 방금 받은 `AudioRelayClientGui.exe` 실행
@@ -73,7 +73,7 @@ cd bot
 cp .env.example .env
 ```
 
-이후 `bot/.env`를 열어 `DISCORD_TOKEN`, `GUILD_ID`, `VOICE_CHANNEL_ID` 등 값을 채워주세요.
+이후 `bot/.env`를 열어 `DISCORD_TOKEN`, `GUILD_ID`, `WS_PORT`, `WS_SECRET` 등 값을 채워주세요. `WS_SECRET`은 필수이며 비어 있으면 봇이 시작하지 않습니다. 32바이트 이상 무작위 값을 쓰세요(예: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
 
 ### GUI 클라이언트 배포용 빌드 (관리자용)
 `client-gui/secrets.local.json`(gitignore 대상, `secrets.local.json.example` 참고)에 실제 서버 주소와 `WS_SECRET`을 넣어두면 빌드 시 실행 파일에 내장됩니다.
@@ -83,7 +83,24 @@ cd client-gui
 dotnet publish -c Release -p:PublishProfile=win-x64
 ```
 
-`bin/Release/net9.0-windows10.0.19041.0/publish/win-x64/AudioRelayClientGui.exe` 파일 하나만 생성되며, .NET 런타임 설치 없이 그 파일 하나로 실행됩니다. 이 파일을 GitHub Release에 `AudioRelayClientGui.exe`라는 이름으로 첨부하면 위 "길드원용 사용법"의 다운로드 링크가 자동으로 최신 파일을 가리킵니다.
+`bin/Release/net9.0-windows10.0.19041.0/publish/win-x64/AudioRelayClientGui.exe` 파일 하나만 생성되며, .NET 런타임 설치 없이 그 파일 하나로 실행됩니다. 이 파일에는 서버 주소와 `WS_SECRET`이 들어 있으므로 **GitHub Release나 저장소 같은 공개된 곳에 올리면 안 됩니다.** 받은 사람은 누구나 인증을 통과할 수 있습니다. 길드 디스코드 채널에만 올려 배포하세요.
+
+## 보안
+소규모 지인 서버용이라 길드원의 사용 편의를 우선하는 구조입니다. 지금 막고 있는 것과 남아 있는 한계는 다음과 같습니다.
+
+**막고 있는 것**
+- `WS_SECRET`이 비어 있으면 봇이 시작하지 않음. 비밀키는 길이를 먼저 비교한 뒤 `crypto.timingSafeEqual`로 비교
+- 세션 하나에 클라이언트 연결은 하나만 허용. 이미 연결이 있으면 새 연결은 close code `4005`로 거부하고 로그를 남김. 연결이 끊긴 클라이언트는 응답이 없으면 정리되어 다시 접속 가능
+- 클라이언트가 연결되거나 해제되면 `/start`를 실행한 채널에 알림
+- 같은 IP에서 60초 안에 인증을 5번 실패하면 그 IP를 60초간 거부(메모리에만 저장, 봇을 재시작하면 초기화). 메시지 크기는 64KB로 제한
+- 실제 서버 주소와 비밀키는 저장소에 커밋하지 않음(`.gitignore`). 커밋 기록에 비밀키가 들어간 적이 없음을 확인함
+- 배포용 실행 파일은 공개 저장소·Release에 올리지 않고 길드 디스코드 채널로만 전달. 예전에 공개 Release로 올렸던 실행 파일은 삭제했고, 그 안에 있던 비밀키는 새 값으로 교체함
+
+**남아 있는 한계**
+- 비밀키가 실행 파일 안에 들어 있어서, 파일을 받은 사람은 키를 꺼내 쓸 수 있습니다. 키 하나를 모두가 공유하므로 사람별로 막을 수 없고, 유출되면 `WS_SECRET`을 바꾼 뒤 새 실행 파일을 다시 배포해야 합니다.
+- 서버 주소가 `ws://`(암호화 없음)라서 비밀키와 오디오가 네트워크 경로에서 그대로 보일 수 있습니다. 아직 `wss://`를 적용하지 않았습니다.
+- 비밀키가 있는 사람이 세션 주인보다 먼저 접속하면 소리를 보낼 수 있습니다. 세션 주인 본인인지는 확인하지 않습니다. 연결 알림으로 알아챌 수는 있지만 막지는 못합니다.
+- 과거 커밋(1708bca, 37b2a33)에 서버 주소와 포트가 남아 있습니다. 비밀키는 아닙니다.
 
 ## 라이선스
 비공개 개인/길드 프로젝트로, 별도 라이선스를 지정하지 않습니다.
