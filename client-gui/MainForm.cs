@@ -27,11 +27,11 @@ public class MainForm : Form
         Margin = new Padding(0, 0, 0, 8),
     };
 
-    private readonly TextBox _secretBox = new()
+    private readonly TextBox _codeBox = new()
     {
         Dock = DockStyle.Top,
-        PlaceholderText = "비밀키",
-        UseSystemPasswordChar = true,
+        PlaceholderText = "접속 코드 (디스코드 /start에서 받은 6자리)",
+        MaxLength = 6,
         Margin = new Padding(0, 0, 0, 8),
     };
 
@@ -81,13 +81,13 @@ public class MainForm : Form
         _refreshButton.Click += (_, _) => RefreshProcessList();
         _startStopButton.Click += (_, _) => ToggleRelay();
 
-        // Dock.Top 컨트롤은 먼저 추가된 것이 위쪽에 오므로, 표시 순서(서버 주소 → 비밀키 → 새로고침)대로 역순 추가.
+        // Dock.Top 컨트롤은 먼저 추가된 것이 위쪽에 오므로, 표시 순서(서버 주소 → 접속 코드 → 새로고침)대로 역순 추가.
         // 개별 컨트롤을 바로 Form에 붙여서, 숨겨질 때(Visible=false) 레이아웃 공간을 실제로 반환하게 한다.
         Controls.Add(_processList);
         Controls.Add(_startStopButton);
         Controls.Add(new Panel { Dock = DockStyle.Top, Height = 8 }); // 여백
         Controls.Add(_refreshButton);
-        Controls.Add(_secretBox);
+        Controls.Add(_codeBox);
         Controls.Add(_serverBox);
         Controls.Add(_statusLabel);
 
@@ -96,9 +96,9 @@ public class MainForm : Form
     }
 
     /// <summary>
-    /// 빌드 시 client-gui/secrets.local.json(gitignore 대상)이 있으면 그 값을 실행파일에 내장한다.
-    /// 내장된 값이 있으면 서버 주소/비밀키 입력창을 숨겨 사용자는 캡처 대상 선택 후 시작만 누르면 된다.
-    /// 내장된 값이 없으면(공개 저장소를 그대로 빌드한 경우) 직접 입력할 수 있도록 입력창을 보여준다.
+    /// 빌드 시 client-gui/secrets.local.json(gitignore 대상)이 있으면 서버 주소를 실행파일에 내장한다.
+    /// 내장된 값이 있으면 서버 주소 입력창을 숨긴다. 비밀키는 내장하지 않고, 사용자는 디스코드 /start로 받은
+    /// 일회용 접속 코드를 입력한다. 내장된 값이 없으면(공개 저장소를 그대로 빌드한 경우) 서버 주소도 직접 입력한다.
     /// </summary>
     private void ApplyEmbeddedConnectionSettings()
     {
@@ -119,21 +119,18 @@ public class MainForm : Form
 
         var settings = JsonSerializer.Deserialize<ConnectionSettings>(
             stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        if (settings?.ServerUrl == null || settings.Secret == null)
+        if (settings?.ServerUrl == null)
         {
             return;
         }
 
         _serverBox.Text = settings.ServerUrl;
-        _secretBox.Text = settings.Secret;
         _serverBox.Visible = false;
-        _secretBox.Visible = false;
     }
 
     private sealed class ConnectionSettings
     {
         public string? ServerUrl { get; set; }
-        public string? Secret { get; set; }
     }
 
     private void RefreshProcessList()
@@ -175,13 +172,20 @@ public class MainForm : Form
                 return;
             }
 
+            var code = _codeBox.Text.Trim();
+            if (code.Length != 6 || !code.All(char.IsAsciiDigit))
+            {
+                MessageBox.Show("디스코드에서 /start를 입력해 받은 6자리 접속 코드를 입력해주세요.");
+                return;
+            }
+
             _cts = new CancellationTokenSource();
-            _relayTask = RunRelayAsync(entry, _serverBox.Text, _secretBox.Text, _cts.Token);
+            _relayTask = RunRelayAsync(entry, _serverBox.Text, code, _cts.Token);
 
             _startStopButton.Text = "중지";
             _processList.Enabled = false;
             _serverBox.Enabled = false;
-            _secretBox.Enabled = false;
+            _codeBox.Enabled = false;
             _refreshButton.Enabled = false;
         }
         else
@@ -198,11 +202,11 @@ public class MainForm : Form
         _startStopButton.Text = "시작";
         _processList.Enabled = true;
         _serverBox.Enabled = true;
-        _secretBox.Enabled = true;
+        _codeBox.Enabled = true;
         _refreshButton.Enabled = true;
     }
 
-    private async Task RunRelayAsync(ProcessEntry entry, string serverUrl, string secret, CancellationToken token)
+    private async Task RunRelayAsync(ProcessEntry entry, string serverUrl, string code, CancellationToken token)
     {
         int? serverCloseCode = null;
         try
@@ -212,7 +216,7 @@ public class MainForm : Form
             using var socket = new ClientWebSocket();
             await socket.ConnectAsync(new Uri(serverUrl), token);
 
-            var authJson = JsonSerializer.Serialize(new { secret });
+            var authJson = JsonSerializer.Serialize(new { code });
             await socket.SendAsync(Encoding.UTF8.GetBytes(authJson), WebSocketMessageType.Text, endOfMessage: true, token);
 
             // 서버가 연결을 닫으면(인증 실패, 이미 다른 클라이언트 연결됨 등) 전송 루프를 멈추고 이유를 보여준다.
@@ -315,7 +319,7 @@ public class MainForm : Form
     private static string DescribeServerClose(int code) => code switch
     {
         4001 => "서버가 인증 메시지를 받지 못했습니다. 다시 시도해주세요.",
-        4003 => "인증에 실패했습니다. 이 프로그램이 예전 버전일 수 있어요. 새 실행 파일을 받아주세요.",
+        4003 => "접속 코드가 올바르지 않거나 만료되었습니다. 디스코드에서 /start를 다시 입력해 새 코드를 받아주세요. (프로그램이 예전 버전이면 새 실행 파일을 받아주세요)",
         4004 => "활성화된 릴레이 세션이 없습니다. 먼저 디스코드에서 /start를 실행해주세요.",
         4005 => "이미 다른 오디오 클라이언트가 연결되어 있습니다. 한 번에 하나만 연결할 수 있어요.",
         4006 => "인증 실패가 너무 많아 잠시 접속이 차단되었습니다. 잠시 후 다시 시도해주세요.",
